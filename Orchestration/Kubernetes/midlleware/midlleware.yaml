@@ -1,0 +1,11 @@
+# manifest-repo/loginapp-chart/templates/middleware.yaml
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: strip-loginapp-prefix
+  namespace: default # Ensure this matches your app's namespace
+spec:
+  stripPrefix:
+    prefixes:
+      - /loginapp
+    forceSlash: false 

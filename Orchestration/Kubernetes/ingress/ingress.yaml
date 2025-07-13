@@ -1,0 +1,26 @@
+# manifest-repo/loginapp-chart/templates/ingress.yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: loginapp-ingress
+  annotations:
+    # Tell Traefik this Ingress is for it (usually default in K3s)
+    kubernetes.io/ingress.class: traefik
+    # If you want to use a specific entrypoint for Traefik (e.g., just 'web' for HTTP)
+    traefik.ingress.kubernetes.io/router.entrypoints: web
+    # Optional: Remove if you don't want strict path matching
+    # traefik.ingress.kubernetes.io/router.middlewares: default-strip-prefix@kubernetescrd
+    # If your app expects the path, don't use strip-prefix. If it expects /login to be /, use strip-prefix.
+    traefik.ingress.kubernetes.io/router.middlewares: default-strip-loginapp-prefix@kubernetescrd
+spec:
+  ingressClassName: traefik 
+  rules:
+    - http:
+        paths:
+          - path: /loginapp # <-- Choose a unique path for your app
+            pathType: Prefix # Use Prefix for this type of general path matching
+            backend:
+              service:
+                name: loginapp-webapp-svc # Your app's Service name
+                port:
+                  number: 80 # The port your app's Service exposes
