@@ -7,16 +7,21 @@ Ce dossier contient les manifestes Kubernetes pour déployer l'application `logi
 Assurez-vous que Docker est installé sur votre machine Ubuntu.
 
 1.  **Installer K3s :**
-    curl -sfL https://get.k3s.io | sh -
+    ```bash
+    curl -sfL [https://get.k3s.io](https://get.k3s.io) | sh -
+    ```
 2.  **Vérifier l'état de K3s :**
+    ```bash
     sudo systemctl status k3s
     kubectl get nodes
-  
+    ```
 3.  **Configurer `kubectl` :**
+    ```bash
     mkdir -p ~/.kube
     sudo cp /etc/rancher/k3s/k3s.yaml ~/.kube/config
     sudo chown $(id -u):$(id -g) ~/.kube/config
     chmod 600 ~/.kube/config
+    ```
     Cela permet à `kubectl` d'utiliser la configuration K3s sans `sudo`.
 
 ---
@@ -58,6 +63,6 @@ K3s installe **Traefik** comme Ingress Controller par défaut. Cela signifie que
 
 Pour confirmer que Traefik est bien en cours d'exécution dans votre cluster K3s :
 
-
+```bash
 kubectl get pods -n kube-system -l app.kubernetes.io/name=traefik
 kubectl get svc -n kube-system -l app.kubernetes.io/name=traefik
