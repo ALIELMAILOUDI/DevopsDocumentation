@@ -1,0 +1,46 @@
+
+FROM openjdk:17-jdk-slim AS builder
+
+WORKDIR /app
+
+# Copie le pom.xml (pour Maven) ou build.gradle (pour Gradle)
+# Optimise le cache Docker en copiant les fichiers de build en premier
+COPY pom.xml .
+# Si vous utilisez Gradle, décommentez et ajustez:
+# COPY build.gradle .
+# COPY settings.gradle .
+
+# Copie les scripts wrapper Maven/Gradle si utilisés (recommandé)
+# COPY mvnw .
+# COPY .mvn ./.mvn/
+# chmod +x mvnw # Rendre le wrapper exécutable si nécessaire
+
+# Exécute la phase de dépendances (pour Maven, optimiser le cache)
+# RUN --mount=type=cache,target=/root/.m2 ./mvnw dependency:go-offline -B
+
+# Copie le reste du code source de l'application
+COPY src ./src
+
+# Construit l'application Spring Boot en un JAR exécutable
+# Utilisez la commande de build appropriée pour Maven ou Gradle
+# Pour Maven:
+RUN --mount=type=cache,target=/root/.m2 ./mvnw clean package -Dmaven.test.skip=true
+
+# Pour Gradle (si utilisé, décommentez et remplacez la ligne Maven):
+# RUN ./gradlew bootJar
+
+# --- Étape 2 : Exécuter l'Application Spring Boot ---
+# Utilise une JRE (Java Runtime Environment) légère pour l'exécution
+FROM openjdk:17-jre-slim
+
+# Définit le répertoire de travail dans l'image finale
+WORKDIR /app
+
+# Copie uniquement le JAR exécutable depuis l'étape de build
+COPY --from=builder /app/target/*.jar /app/app.jar
+
+# Expose le port par défaut de Spring Boot
+EXPOSE 8080
+
+# Commande de démarrage de l'application Spring Boot
+CMD ["java", "-jar", "app.jar"]

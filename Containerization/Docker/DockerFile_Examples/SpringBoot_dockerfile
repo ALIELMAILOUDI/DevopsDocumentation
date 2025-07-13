@@ -1,0 +1,43 @@
+* **`Dockerfile` :**
+    ```dockerfile
+    # --- Étape 1 : Construire l'Application Spring Boot ---
+    FROM openjdk:17-jdk-slim AS builder
+
+    # Définit le répertoire de travail dans l'image
+    WORKDIR /app
+
+    # Copie les fichiers de build (Maven ou Gradle)
+    # Assurez-vous que votre application est construite dans un fichier JAR exécutable
+    # Pour Maven: RUN mvn package
+    # Pour Gradle: RUN gradle bootJar
+    COPY pom.xml .
+    COPY src ./src
+
+    # Construire l'application Spring Boot
+    # Remplacez './mvnw clean package -Dmaven.test.skip=true' par votre commande de build
+    # Utilisez './gradlew bootJar' si vous utilisez Gradle
+    RUN --mount=type=cache,target=/root/.m2 ./mvnw clean package -Dmaven.test.skip=true
+
+    # Extrait le JAR pour copier uniquement les dépendances nécessaires dans l'étape suivante
+    RUN mkdir -p target/dependency && (cd target/dependency; jar -xf ../*.jar)
+
+    # --- Étape 2 : Exécuter l'Application Spring Boot ---
+    # Utilise une JRE plus légère pour l'exécution
+    FROM openjdk:17-jre-slim
+
+    # Définit des variables d'environnement pour Spring Boot (facultatif)
+    ENV SPRING_PROFILES_ACTIVE=prod
+
+    # Copie les dépendances et le JAR de l'étape de build
+    COPY --from=builder /app/target/dependency/BOOT-INF/lib /app/BOOT-INF/lib
+    COPY --from=builder /app/target/dependency/META-INF /app/META-INF
+    COPY --from=builder /app/target/dependency/org /app/org
+
+    # Copie le JAR de l'application
+    COPY --from=builder /app/target/*.jar /app/app.jar
+
+    # Expose le port de l'application (par défaut 8080 pour Spring Boot)
+    EXPOSE 8080
+
+    # Commande de démarrage de l'application
+    CMD ["java", "-jar", "/app/app.jar"]
