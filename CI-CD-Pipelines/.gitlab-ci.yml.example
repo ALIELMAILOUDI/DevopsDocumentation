@@ -1,0 +1,40 @@
+stages :
+    - build
+    - update_helm_chart
+variables :
+    APP_NAME: login_demo
+    IMAGE_TAG: registry.gitlab.com/alielm03/code-repo/$APP_NAME:$CI_COMMIT_SHORT_SHA
+
+build_image:
+  stage: build
+  image: docker:latest # Specifies the Docker image to use for this job
+  services:
+    - docker:dind # Enables Docker-in-Docker service
+
+  script:
+
+
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+
+    - docker build -t $IMAGE_TAG .
+
+    - docker push $IMAGE_TAG
+
+update_helm_chart:
+  stage: update_helm_chart
+  image: ubuntu:22.04
+
+  before_script:
+    - apt-get update -y && apt-get install -y git
+
+  script:
+    - echo $PUSH_TOKEN
+    - git clone https://gitlab.com/alielm03/manifest-repo.git
+    - cd manifest-repo
+    - sed -i "s/login_demo:.*/login_demo:${CI_COMMIT_SHORT_SHA}/g" test-login-app/values.yaml
+    - git config user.email "gitlab-ci@gmail.com"
+    - git config user.name  "gitlab-ci"
+    - git add test-login-app/values.yaml
+    - git commit -m "Update image tag to ${CI_COMMIT_SHORT_SHA}"
+    - git push https://gitlab.com/alielm03/manifest-repo.git
+
