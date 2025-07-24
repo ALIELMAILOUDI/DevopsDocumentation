@@ -1,0 +1,71 @@
+# gatekeeper-values.yaml
+# Fichier de valeurs Helm personnalisé pour le déploiement d'OPA Gatekeeper.
+
+# Ce fichier contient les overrides pour le Helm Chart officiel de Gatekeeper.
+# Pour une liste complète des options, voir https://open-policy-agent.github.io/gatekeeper/website/docs/install#helm
+
+controllerManager:
+  # Ressources allouées au contrôleur Gatekeeper
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 200m
+      memory: 512Mi
+
+  # Nombre de réplicas pour la haute disponibilité
+  replicas: 2
+
+  # Activer ou désactiver les webhooks d'admission
+  # En production, toujours activé pour bloquer les violations
+  exemptions: [] # Liste des objets à exempter des webhooks d'admission de Gatekeeper
+
+audit:
+  # Configurer l'audit des ressources par Gatekeeper
+  enabled: true
+  interval: 60s # Fréquence de l'audit
+  # Des ressources pour le job d'audit si nécessaire
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 100m
+      memory: 256Mi
+
+# Nom du Service Account utilisé par Gatekeeper
+serviceAccount:
+  name: gatekeeper-sa # Utilise le Service Account par défaut pour Gatekeeper
+
+# Configuration des Mutating Webhooks (si des mutations sont nécessaires)
+# mutatingWebhook:
+#   enabled: true
+
+# Optionnel: Récupérer les données pour l'audit et les webhooks
+# Cela peut être utile pour collecter des données de l'API Kubernetes pour les politiques.
+# data:
+#   sync:
+#     syncOnly:
+#       - group: ""
+#         version: "v1"
+#         kind: "Pod"
+#       - group: "apps"
+#         version: "v1"
+#         kind: "Deployment"
+
+# Pods tolérations et affinités si nécessaires pour le placement des pods Gatekeeper
+# affinity:
+#   nodeAffinity:
+#     requiredDuringSchedulingIgnoredDuringExecution:
+#       nodeSelectorTerms:
+#       - matchExpressions:
+#         - key: kubernetes.io/os
+#           operator: In
+#           values:
+#           - linux
+
+# tolerations:
+#   - key: "node-role.kubernetes.io/master"
+#     operator: "Exists"
+#     effect: "NoSchedule"

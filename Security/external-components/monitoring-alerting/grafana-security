@@ -1,0 +1,68 @@
+# Tableaux de Bord de Sécurité Grafana
+
+Ce document décrit les tableaux de bord Grafana que nous utilisons spécifiquement pour la **surveillance de la sécurité** de notre environnement Cloud-Native. Ces tableaux de bord fournissent une vue d'ensemble en temps réel de la posture de sécurité, des alertes actives, des activités suspectes et des tendances.
+
+---
+
+## 🚀 Accéder aux Tableaux de Bord
+
+Pour accéder à ces tableaux de bord, connectez-vous à notre instance Grafana :
+`https://grafana.votre-domaine.com` (adaptez l'URL à votre déploiement).
+
+---
+
+## Tableaux de Bord Clés Orientés Sécurité
+
+Nous avons plusieurs tableaux de bord pour couvrir différents aspects de la sécurité :
+
+### 1. **Tableau de Bord "DevSecOps Overview"**
+
+* **Objectif :** Fournir une vue d'ensemble haute-niveau de la santé de la sécurité de nos pipelines CI/CD et de notre environnement runtime.
+* **Sources de Données :** Prometheus, Loki.
+* **Panels Clés :**
+    * **Statut des Scans CI/CD :** Affiche le nombre de jobs SAST, Dependency Scanning, Secret Detection, Container Scanning qui ont réussi/échoué.
+    * **Vulnérabilités SAST/DAST :** Graphiques des vulnérabilités critiques/élevées par application au fil du temps (si les données sont exportées ou scrappées par Prometheus).
+    * **Alertes Falco Actives :** Compteur et liste des alertes Falco triées par priorité (Critique, Élevée, etc.).
+    * **Violations Gatekeeper :** Graphiques des requêtes d'admission refusées (`denial`) et des violations auditées (`audit`) par Gatekeeper.
+    * **Activité Suspecte des Logs :** Requêtes Loki pour des mots-clés de sécurité ou des patterns anormaux dans les logs applicatifs/système.
+    * **Statut de Vault :** Métriques de santé de Vault (si non scellé, nombre de requêtes).
+
+### 2. **Tableau de Bord "Falco - Runtime Security"**
+
+* **Objectif :** Monitoring détaillé des activités de sécurité détectées par Falco.
+* **Sources de Données :** Prometheus (pour les métriques de Falco), Loki (pour les logs détaillés des alertes Falco).
+* **Panels Clés :**
+    * **Volume d'Alertes par Priorité :** Histogramme ou graphiques circulaires du nombre d'alertes Falco par niveau de sévérité.
+    * **Alertes Récents :** Table affichant les dernières alertes Falco, avec des détails comme la règle déclenchée, le nom du conteneur, le processus, l'utilisateur et le message de sortie.
+    * **Top Règles Déclenchées :** Liste des règles Falco les plus fréquemment déclenchées.
+    * **Top Conteneurs/Pods avec Alertes :** Identification des entités les plus "bruyantes" en termes d'alertes de sécurité.
+    * **Requêtes Loki pour Alertes :** Permet d'explorer les logs bruts des alertes Falco.
+
+### 3. **Tableau de Bord "OPA Gatekeeper - Policy Enforcement"**
+
+* **Objectif :** Suivre l'efficacité de nos politiques de contrôle d'admission et identifier les tentatives de non-conformité.
+* **Sources de Données :** Prometheus (pour les métriques de Gatekeeper).
+* **Panels Clés :**
+    * **Requêtes Refusées vs. Auditées :** Graphique montrant le nombre de requêtes d'admission qui ont été refusées ou simplement auditées par Gatekeeper.
+    * **Violations par ConstraintTemplate :** Répartition des violations par type de politique (ex: "no-privileged-containers", "resource-limits-required").
+    * **Violations par Namespace/Utilisateur :** Identifier les namespaces ou les utilisateurs qui génèrent le plus de violations.
+    * **Top Ressources Violées :** Quelles ressources Kubernetes spécifiques sont le plus souvent à l'origine de violations.
+
+### 4. **Tableau de Bord "Audit Kubernetes Logs"**
+
+* **Objectif :** Fournir une interface de recherche et d'analyse des logs d'audit de l'API Kubernetes pour des investigations de sécurité approfondies.
+* **Sources de Données :** Loki (nécessite que les logs d'audit Kubernetes soient envoyés à Loki via Promtail ou autre).
+* **Panels Clés :**
+    * **Volume de Logs d'Audit :** Graphique du nombre d'événements d'audit par période.
+    * **Opérations API par Utilisateur/ServiceAccount :** Identification des utilisateurs et des Service Accounts les plus actifs sur l'API.
+    * **Opérations API Sensibles :** Filtrage des logs pour les opérations de création/modification/suppression de secrets, rôles, Service Accounts, etc.
+    * **Activité de Connexion :** Surveillance des tentatives de connexion à l'API.
+    * **Explorateur de Logs :** Un panel pour la recherche interactive dans tous les logs d'audit, permettant de filtrer par utilisateur, ressource, verbe HTTP, etc.
+
+---
+
+## Maintenance des Tableaux de Bord
+
+Ces tableaux de bord sont gérés en tant qu'IaC (Infrastructure as Code) via [Grafana Provisioning](https://grafana.com/docs/grafana/latest/administration/provisioning/#dashboards) ou des outils comme [Grafana Tanka](https://grafana.com/docs/tanka/latest/). Les définitions JSON des tableaux de bord devraient idéalement être versionnées dans un dépôt Git.
+
+Pour plus d'informations sur la création et la gestion de tableaux de bord Grafana, consultez la [documentation officielle de Grafana](https://grafana.com/docs/grafana/latest/).

@@ -1,0 +1,118 @@
+# security-alert-rules.yaml
+# Règles d'alerte Prometheus spécifiques à la sécurité.
+# Ces règles déclencheront des alertes via Alertmanager si les conditions sont remplies.
+
+groups:
+  - name: security-alerts
+    rules:
+      # --- Alertes Falco ---
+      # Cette alerte se déclenche si un nombre élevé d'alertes Falco de haute gravité est détecté.
+      # Nécessite que l'exportateur Prometheus de Falco soit configuré et scanné par Prometheus.
+      - alert: HighSeverityFalcoAlerts
+        expr: sum(falco_alerts_total{priority=~"CRITICAL|EMERGENCY|ALERT"}) by (priority) > 5
+        for: 5m
+        labels:
+          severity: critical
+          team: security
+        annotations:
+          summary: "Alertes Falco de haute sévérité fréquentes"
+          description: "Plus de 5 alertes Falco de priorité {{ $labels.priority }} détectées en 5 minutes. Indique une activité potentiellement malveillante dans le cluster."
+
+      - alert: FalcoPrivilegeEscalationDetected
+        expr: sum(falco_alerts_total{rule="Privilege Escalation"}) by (rule) > 0
+        for: 1m
+        labels:
+          severity: critical
+          team: security
+        annotations:
+          summary: "Tentative d'escalade de privilèges détectée par Falco"
+          description: "Une règle d'escalade de privilèges Falco s'est déclenchée. Une intervention immédiate est requise."
+
+      # --- Alertes OPA Gatekeeper ---
+      # Cette alerte se déclenche si des requêtes sont rejetées par Gatekeeper.
+      # Indique des tentatives de déploiement de ressources non conformes.
+      # Nécessite que les métriques de Gatekeeper soient exposées et scannées par Prometheus.
+      - alert: GatekeeperDeniedRequests
+        expr: sum(gatekeeper_violations_total{type="denial"}) > 0
+        for: 1m
+        labels:
+          severity: warning
+          team: security
+        annotations:
+          summary: "Requêtes Kubernetes refusées par Gatekeeper"
+          description: "Des requêtes de ressources Kubernetes ont été refusées par OPA Gatekeeper. Cela peut indiquer des tentatives de déploiement non conformes."
+
+      - alert: GatekeeperAuditViolations
+        expr: sum(gatekeeper_violations_total{type="audit"}) > 10
+        for: 15m
+        labels:
+          severity: info
+          team: security
+        annotations:
+          summary: "Violations de politique Gatekeeper auditées"
+          description: "Plus de 10 violations de politique Gatekeeper ont été détectées en mode audit au cours des 15 dernières minutes. Un examen est nécessaire."
+
+      # --- Alertes Spécifiques à Kubernetes (Audit Logs) ---
+      # Ces alertes nécessitent que les logs d'audit Kubernetes soient envoyés à Loki et ensuite
+      # que Loki soit configuré comme source de données pour Grafana et/ou qu'une agrégation
+      # de métriques soit faite (ex: par un exporter ou un job Prometheus) sur les logs de Loki.
+      # Alternativement, si vous avez le plugin Falco k8s_audit_events, Falco peut générer ces alertes.
+
+      - alert: UnusualK8sAPIAccess
+        expr: |
+          count_over_time(
+            sum by (user, verb) (
+              rate(log_messages_total{job="kubernetes-audit", component="kube-apiserver", verb=~"create|update|delete"}[5m])
+            ) offset 5m
+          ) > 3
+        for: 10m
+        labels:
+          severity: high
+          team: security
+        annotations:
+          summary: "Activité API Kubernetes inhabituelle"
+          description: "Détection d'une augmentation inhabituelle des opérations de création/mise à jour/suppression sur l'API Kubernetes par l'utilisateur {{ $labels.user }}."
+
+      - alert: SensitiveSecretAccessed
+        expr: |
+          count_over_time(
+            sum by (secret_name, user) (
+              rate(log_messages_total{job="kubernetes-audit", component="kube-apiserver", verb="get", object_resource="secrets", secret_name=~"^(super-secret|admin-creds)$"}[5m])
+            )
+          ) > 0
+        for: 5m
+        labels:
+          severity: critical
+          team: security
+        annotations:
+          summary: "Accès à un secret sensible détecté"
+          description: "Le secret sensible '{{ $labels.secret_name }}' a été accédé par l'utilisateur '{{ $labels.user }}'."
+
+      # --- Alertes pour la sécurité des conteneurs (via cAdvisor/kubelet métriques) ---
+      # Détection de conteneurs utilisant des capacités Linux élevées (privilèges).
+      # Nécessite de configurer des métriques spécifiques ou de s'appuyer sur des outils comme Falco.
+      # Cet exemple est plus conceptuel sans une métrique directe pour 'privileged' des cAdvisor.
+      # Une meilleure façon est via Falco ou Gatekeeper.
+      # - alert: PrivilegedContainerRunning
+      #   expr: max(container_spec_privileged{container!=""}) by (pod, namespace, container) > 0
+      #   for: 1m
+      #   labels:
+      #     severity: critical
+      #     team: security
+      #   annotations:
+      #     summary: "Conteneur privilégié en cours d'exécution"
+      #     description: "Le conteneur {{ $labels.container }} dans le pod {{ $labels.pod }} du namespace {{ $labels.namespace }} est en cours d'exécution avec des privilèges élevés."
+
+      # --- Alertes pour les scans de vulnérabilité (SIEM/SOC integration) ---
+      # Souvent, les résultats des scanners (SAST/DAST/Container Scan) sont envoyés à un SIEM
+      # pour des alertes. Prometheus peut surveiller l'état de ces scanners.
+      - alert: SecurityScanFailed
+        expr: |
+          gitlab_ci_job_status{job=~"sast|container_scanning|secret_detection", status="failed"} == 1
+        for: 15m
+        labels:
+          severity: high
+          team: devops
+        annotations:
+          summary: "Un scan de sécurité CI/CD a échoué"
+          description: "Le job GitLab CI '{{ $labels.job }}' a échoué dans le projet '{{ $labels.project }}' sur la branche '{{ $labels.branch }}'. Cela peut indiquer un problème de configuration ou une nouvelle vulnérabilité critique."

@@ -1,0 +1,83 @@
+# falco-values.yaml
+# Fichier de valeurs Helm personnalisé pour le déploiement de Falco.
+
+# Ce fichier contient les overrides pour le Helm Chart officiel de Falco.
+# Pour une liste complète des options, voir https://artifacthub.io/packages/helm/falcosecurity/falco#parameters
+
+# Configuration générale de Falco
+falco:
+  jsonOutput: true # Activer la sortie JSON pour les logs (plus facile à parser par Loki/Promtail)
+  jsonOutputOnly: true # Ne produire que des logs JSON
+  priority: debug # Niveau de priorité minimum pour les événements (debug, info, notice, warning, error, critical, alert, emergency)
+  logLevel: info # Niveau de log de Falco lui-même
+
+  # Règles personnalisées
+  # Vous pouvez inclure vos règles personnalisées ici ou référencer un ConfigMap existant
+  # rules:
+  #   custom_rule_example.yaml: |
+  #     - rule: DetectShellInWebserver
+  #       desc: "Detecting shell running in webserver container"
+  #       condition: "evt.type=execve and container.image.repository in (nginx, apache) and proc.name in (bash, sh)"
+  #       output: "Shell in webserver (user=%user.name container_id=%container.id container_name=%container.name proc_name=%proc.name)"
+  #       priority: WARNING
+
+# Configuration de l'agent Falco (DaemonSet)
+falcoctl:
+  enabled: true # Activer l'agent falcoctl pour la gestion des plugins et règles
+  config:
+    artifact:
+      install:
+        - name: falco_rules
+          version: "latest" # Utiliser les dernières règles Falco officielles
+        - name: k8s_audit_rules # Si vous utilisez le plugin Kubernetes audit
+          version: "latest"
+
+# Configuration des Outputers pour envoyer les alertes Falco
+# Nous allons envoyer les alertes vers le service d'exporter Prometheus de Falco
+# et/ou directement vers un webhook ou stdout pour être capturé par Promtail (vers Loki).
+# Pour l'intégration Prometheus + Grafana, assurez-vous que l'exporter est activé.
+falcoService:
+  enabled: true # Expose les métriques pour Prometheus
+
+# Service Account pour Falco (peut nécessiter des permissions spécifiques)
+serviceAccount:
+  create: true
+  name: falco-sa
+  # annotations:
+  #   eks.amazonaws.com/role-arn: "arn:aws:iam::123456789012:role/my-falco-iam-role" # Si sur AWS EKS
+
+# Configuration du driver (kernel module ou eBPF)
+driver:
+  kind: ebpf # Recommandé pour les nouvelles installations sur les noyaux récents
+  # kind: kernel # Si le noyau n'est pas compatible eBPF ou si vous préférez le module kernel
+
+# Ressources allouées aux pods Falco
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 200m
+    memory: 256Mi
+
+# Intégration Prometheus/Grafana (Falco expose des métriques)
+# Pour que Prometheus scrape les métriques de Falco, vous aurez besoin de configurer
+# Prometheus avec un ServiceMonitor si vous utilisez Prometheus Operator, ou
+# manuellement dans votre prometheus.yml.
+# Exemple pour ServiceMonitor (non inclus ici, à ajouter dans le dossier Prometheus) :
+# apiVersion: monitoring.coreos.com/v1
+# kind: ServiceMonitor
+# metadata:
+#   name: falco-service-monitor
+#   labels:
+#     app: falco
+# spec:
+#   selector:
+#     matchLabels:
+#       app.kubernetes.io/name: falco
+#   endpoints:
+#   - port: http # Nom du port défini dans les services de Falco (doit être 'http')
+#     interval: 30s
+#   namespaceSelector:
+#     matchNames:
+#     - falco-namespace

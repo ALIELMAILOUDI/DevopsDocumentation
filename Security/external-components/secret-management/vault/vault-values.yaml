@@ -1,0 +1,98 @@
+# vault-values.yaml
+# Fichier de valeurs Helm personnalisé pour le déploiement de HashiCorp Vault en mode HA.
+
+# Ce fichier contient les overrides pour le Helm Chart officiel de Vault.
+# Pour une liste complète des options, voir https://artifacthub.io/packages/helm/hashicorp/vault#parameters
+
+server:
+  # Configuration de l'image Docker de Vault
+  image:
+    repository: hashicorp/vault
+    tag: "1.16.1" # Spécifiez une version stable et fixe
+
+  # Mode de Haute Disponibilité (HA)
+  ha:
+    enabled: true
+    replicas: 3 # Nombre de réplicas pour la HA
+    # Spécifiez le backend de stockage Raft
+    raft:
+      enabled: true
+      setNodeId: true # Permet à chaque pod d'avoir un ID de nœud Raft unique
+      # Pour un cluster de production, utilisez un stockage persistant
+      # persistData: true # Décommenter si vous utilisez un PV/PVC pour les données Raft
+      # dataVolume:
+      #   size: 10Gi
+
+  # Configuration du Pod (ressources, sécabilité, etc.)
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "200m"
+
+  # Configuration du Service (pour l'accès externe si nécessaire)
+  service:
+    type: ClusterIP # Généralement ClusterIP pour un accès interne via Ingress ou autre
+    # clusterIP: "" # Facultatif, si vous voulez une IP spécifique
+    ports:
+      http: 8200
+      cluster_port: 8201 # Port pour le trafic de cluster Raft
+  
+  # Configuration pour un Ingress (si vous voulez exposer l'interface UI/API)
+  # ingress:
+  #   enabled: true
+  #   ingressClassName: nginx
+  #   annotations:
+  #     nginx.ingress.kubernetes.io/backend-protocol: "HTTPS" # Si Vault utilise TLS
+  #   hosts:
+  #     - host: vault.votre-domaine.com
+  #       paths:
+  #         - path: /
+  #           pathType: Prefix
+  #   tls:
+  #     - secretName: vault-tls-secret # Secret Kubernetes contenant le certificat TLS
+  #       hosts:
+  #         - vault.votre-domaine.com
+
+  # Initialisation et Auto-Unseal (fortement recommandé en production si supporté)
+  # Pour un auto-unseal avec Google Cloud KMS, AWS KMS, Azure Key Vault, etc.
+  # autoUnseal:
+  #   enabled: true
+  #   options:
+  #     googleKms:
+  #       project: your-gcp-project-id
+  #       region: your-gcp-region
+  #       keyRing: your-kms-keyring
+  #       cryptoKey: your-kms-cryptokey
+  #       serviceAccount: vault-kms-sa@your-gcp-project-id.iam.gserviceaccount.com
+
+  # Autres configurations spécifiques à Vault (via config map)
+  extraVolumes:
+    - type: configMap
+      name: vault-extra-config
+      items:
+        - key: vault-config.hcl
+          path: vault-config.hcl
+
+  extraVolumesConfig:
+    vault-extra-config: |
+      listener "tcp" {
+        address = "[::]:8200"
+        cluster_address = "[::]:8201"
+        tls_disable = "true" # IMPORTANT: Utilisez TLS en production!
+                             # Si tls_disable est "true", désactive le TLS pour l'écouteur,
+                             # ce qui est **NON RECOMMANDÉ** pour la production sans un Ingress qui gère le TLS.
+                             # Pour le développement local k3s ou derrière un Ingress TLS: true
+                             # Pour la production, configurez des certificats TLS via 'tls_cert_file' et 'tls_key_file'.
+                             # Ou activez le TLS via l'ingress avec un backend HTTP.
+      }
+      storage "raft" {
+        path = "/vault/data"
+      }
+      service_registration "kubernetes" {} # Permet à Vault de s'enregistrer auprès de Kubernetes
+
+# Configuration des outils CLI (kubectl exec, etc.)
+ui:
+  enabled: true # Activer l'interface utilisateur de Vault
